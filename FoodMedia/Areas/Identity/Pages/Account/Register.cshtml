@@ -44,11 +44,12 @@
                             <span asp-validation-for="Input.Bio" class="text-danger"></span>
                         </div>
 
-                        <div class="form-floating mb-4">
-                            <input asp-for="Input.ProfilePictureUrl" class="form-control" placeholder="Profile picture URL (optional)" />
-                            <label asp-for="Input.ProfilePictureUrl">Profile Picture URL</label>
-                            <span asp-validation-for="Input.ProfilePictureUrl" class="text-danger"></span>
+                        <div class="mb-4">
+                            <label for="profilePictureUpload" class="form-label">Profile Picture (drag & drop or click to upload)</label>
+                            <input asp-for="ProfilePictureFile" type="file" accept="image/*" class="form-control" id="profilePictureUpload" />
+                            <span asp-validation-for="ProfilePictureFile" class="text-danger"></span>
                         </div>
+
 
                         <button id="registerSubmit" type="submit" class="w-100 btn btn-primary mb-3">Register</button>
                     </form>

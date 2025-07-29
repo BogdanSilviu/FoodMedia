@@ -41,6 +41,9 @@ public class RegisterModel : PageModel
 
     public IList<AuthenticationScheme> ExternalLogins { get; set; }
 
+    [BindProperty]
+    public IFormFile? ProfilePictureFile { get; set; }
+
     // ✅ Add custom fields to InputModel
     public class InputModel
     {
@@ -50,8 +53,6 @@ public class RegisterModel : PageModel
 
         public string? Bio { get; set; }
 
-        [Display(Name = "Profile Picture URL")]
-        public string? ProfilePictureUrl { get; set; }
 
         [Required]
         [EmailAddress]
@@ -80,61 +81,55 @@ public class RegisterModel : PageModel
     {
         returnUrl ??= Url.Content("~/");
         ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
-        ApplicationUser user = null;
-        if (ModelState.IsValid)
+
+        if (!ModelState.IsValid)
         {
-            user = CreateUser();
-
-            // ✅ Set username and email
-            await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
-            await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
-
-            // ✅ Set custom fields
-            user.DisplayName = Input.DisplayName;
-            user.Bio = Input.Bio ?? string.Empty;
-            user.ProfilePictureUrl = string.IsNullOrWhiteSpace(Input.ProfilePictureUrl)
-                ? "https://example.com/default-profile.jpg"
-                : Input.ProfilePictureUrl;
-            user.IsProfileComplete = true;
-            var result = await _userManager.CreateAsync(user, Input.Password);
-
-            if (result.Succeeded)
-            {
-                _logger.LogInformation("User created a new account with password.");
-
-                var userId = await _userManager.GetUserIdAsync(user);
-                var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-                var callbackUrl = Url.Page(
-                    "/Account/ConfirmEmail",
-                    pageHandler: null,
-                    values: new { area = "Identity", userId = userId, code = code, returnUrl = returnUrl },
-                    protocol: Request.Scheme);
-
-                await _emailSender.SendEmailAsync(Input.Email, "Confirm your email",
-                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
-
-                if (_userManager.Options.SignIn.RequireConfirmedAccount)
-                {
-                    return RedirectToPage("RegisterConfirmation", new { email = Input.Email, returnUrl = returnUrl });
-                }
-                else
-                {
-                    await _signInManager.SignInAsync(user, isPersistent: false);
-                    return LocalRedirect(returnUrl);
-                }
-            }
-
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error.Description);
-            }
+            return Page();
         }
 
-        // If we got this far, something failed, redisplay form
-        return Page(); // redisplay form with validation errors
+        var user = CreateUser();
 
+        await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+        user.DisplayName = Input.DisplayName;
+        user.Bio = Input.Bio ?? string.Empty;
+
+        if (ProfilePictureFile != null)
+        {
+            var fileName = $"{Guid.NewGuid()}{Path.GetExtension(ProfilePictureFile.FileName)}";
+            var filePath = Path.Combine("wwwroot/uploads/profile-pictures", fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await ProfilePictureFile.CopyToAsync(stream);
+            }
+
+            user.ProfilePictureUrl = $"/uploads/profile-pictures/{fileName}";
+        }
+        else
+        {
+            user.ProfilePictureUrl = "https://example.com/default-profile.jpg";
+        }
+
+        user.IsProfileComplete = true;
+
+        var result = await _userManager.CreateAsync(user, Input.Password);
+        if (result.Succeeded)
+        {
+            // ✅ SIGN IN and REDIRECT
+            await _signInManager.SignInAsync(user, isPersistent: false);
+            return LocalRedirect(returnUrl);
+        }
+
+        foreach (var error in result.Errors)
+        {
+            ModelState.AddModelError(string.Empty, error.Description);
+        }
+
+        return Page();
     }
+
 
     private ApplicationUser CreateUser()
     {
