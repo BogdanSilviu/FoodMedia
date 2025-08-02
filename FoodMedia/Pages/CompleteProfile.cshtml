@@ -6,7 +6,7 @@
 
 <h1>Complete Your Profile</h1>
 
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
     <div class="form-floating mb-3">
@@ -21,10 +21,10 @@
         <span asp-validation-for="Input.Bio" class="text-danger"></span>
     </div>
 
-    <div class="form-floating mb-3">
-        <input asp-for="Input.ProfilePictureUrl" class="form-control" />
-        <label asp-for="Input.ProfilePictureUrl">Profile Picture URL</label>
-        <span asp-validation-for="Input.ProfilePictureUrl" class="text-danger"></span>
+    <div class="mb-3">
+        <label for="profilePictureUpload" class="form-label">Profile Picture (drag & drop or click to upload)</label>
+        <input asp-for="Input.ProfilePictureFile" type="file" accept="image/*" class="form-control" id="profilePictureUpload" />
+        <span asp-validation-for="Input.ProfilePictureFile" class="text-danger"></span>
     </div>
 
     <button type="submit" class="btn btn-primary w-100">Finish Profile</button>

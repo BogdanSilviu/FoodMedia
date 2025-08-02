@@ -1,0 +1,121 @@
+﻿@page
+@model ProfileModel
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<div class="container mt-4">
+    <h2>@Model.DisplayName's Profile</h2>
+    <p>@Model.Bio</p>
+
+    <div class="mb-4">
+        <img src="@Model.ProfilePictureUrl" class="img-thumbnail" style="max-height: 150px;" />
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">
+            @TempData["SuccessMessage"]
+        </div>
+    }
+
+    <hr />
+
+    <button class="btn btn-primary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#createPostForm" aria-expanded="false" aria-controls="createPostForm">
+        Create New Post
+    </button>
+
+    <div class="collapse" id="createPostForm">
+        <div class="card card-body">
+            <form method="post" enctype="multipart/form-data">
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                <div class="mb-3">
+                    <label asp-for="NewPost.Title" class="form-label"></label>
+                    <input asp-for="NewPost.Title" class="form-control" />
+                    <span asp-validation-for="NewPost.Title" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="NewPost.Content" class="form-label"></label>
+                    <textarea asp-for="NewPost.Content" class="form-control" rows="4"></textarea>
+                    <span asp-validation-for="NewPost.Content" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="ImageFile" class="form-label">Upload Image</label>
+                    <input asp-for="ImageFile" type="file" class="form-control" accept="image/*" aria-describedby="imageHelp" />
+                    <small id="imageHelp" class="form-text text-muted">Choose an image file to upload with your post.</small>
+                    <span asp-validation-for="ImageFile" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Select Categories</label>
+                    <div>
+                        @foreach (var category in Model.AvailableCategories)
+                        {
+                            <div class="form-check form-check-inline">
+                                <input type="checkbox"
+                                       name="NewPost.SelectedCategoryIds"
+                                       value="@category.Id"
+                                       id="cat_@category.Id"
+                                @(Model.NewPost.SelectedCategoryIds.Contains(category.Id) ? "checked" : "") />
+                                <label class="form-check-label" for="cat_@category.Id">@category.Name</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success">Submit Post</button>
+            </form>
+        </div>
+    </div>
+
+    <hr />
+    <h4>Your Posts</h4>
+
+    @if (Model.UserPosts != null && Model.UserPosts.Any())
+    {
+        <div class="d-flex flex-column gap-4">
+            @foreach (var post in Model.UserPosts)
+            {
+                <div class="card w-100">
+                    @if (!string.IsNullOrEmpty(post.MainImageUrl))
+                    {
+                        <img src="@post.MainImageUrl" class="card-img-top" alt="Post Image" />
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@post.Title</h5>
+                        <p class="card-text text-muted">
+                            <small>@post.CreatedAt.ToLocalTime().ToString("g")</small>
+                        </p>
+                        <p class="card-text">@post.Content</p>
+
+                        @if (post.PostCategories.Any())
+                        {
+                            <div>
+                                <strong>Categories:</strong>
+                                @foreach (var cat in post.PostCategories)
+                                {
+                                    <span class="badge bg-secondary me-1">@cat.Category.Name</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+    }
+    else
+    {
+        <p>You haven't created any posts yet.</p>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

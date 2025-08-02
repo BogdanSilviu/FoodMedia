@@ -188,7 +188,7 @@ namespace FoodMedia.Areas.Identity.Pages.Account
 
             // 🚫 Don't sign in yet — wait until profile is complete
             // ✅ Redirect to CompleteProfile page to finalize user data
-            return RedirectToPage("/Account/CompleteProfile", new { userId = user.Id, returnUrl });
+            return RedirectToPage("/CompleteProfile", new { userId = user.Id, returnUrl });
         }
 
 
