@@ -1,0 +1,46 @@
+﻿@page "{userId}"
+@model ViewModel
+@{
+    ViewData["Title"] = $"{Model.DisplayName}'s Profile";
+}
+
+<div class="container mt-4">
+    <h2>@Model.DisplayName's Profile</h2>
+    <p>@Model.Bio</p>
+    <img src="@Model.ProfilePictureUrl" class="img-thumbnail mb-3" style="max-height: 150px;" />
+
+    <h4 class="mt-4">Posts</h4>
+    @if (Model.UserPosts.Any())
+    {
+        <div class="d-flex flex-column gap-4">
+            @foreach (var post in Model.UserPosts)
+            {
+                <div class="card w-100">
+                    @if (!string.IsNullOrEmpty(post.MainImageUrl))
+                    {
+                        <img src="@post.MainImageUrl" class="card-img-top" />
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@post.Title</h5>
+                        <p class="text-muted"><small>@post.CreatedAt.ToLocalTime().ToString("g")</small></p>
+                        <p>@post.Content</p>
+                        @if (post.PostCategories.Any())
+                        {
+                            <div>
+                                <strong>Categories:</strong>
+                                @foreach (var cat in post.PostCategories)
+                                {
+                                    <span class="badge bg-secondary">@cat.Category.Name</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p>This user hasn't posted anything yet.</p>
+    }
+</div>

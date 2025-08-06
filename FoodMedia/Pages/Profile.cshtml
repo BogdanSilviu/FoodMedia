@@ -5,6 +5,9 @@
 
 @{
     ViewData["Title"] = "My Profile";
+
+    bool showCreatePost = ViewData["ShowCreatePostForm"] as bool? ?? false;
+    bool showEditProfile = ViewData["ShowEditProfileForm"] as bool? ?? false;
 }
 
 <div class="container mt-4">
@@ -27,29 +30,62 @@
     <button class="btn btn-primary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#createPostForm" aria-expanded="false" aria-controls="createPostForm">
         Create New Post
     </button>
+    <button class="btn btn-secondary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#editProfileForm" aria-expanded="false" aria-controls="editProfileForm">
+        Edit Profile
+    </button>
 
-    <div class="collapse" id="createPostForm">
+    <!-- EDIT PROFILE FORM -->
+    <div class="collapse @(showEditProfile ? "show" : "")" id="editProfileForm">
         <div class="card card-body">
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" asp-page-handler="EditProfile">
                 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
                 <div class="mb-3">
-                    <label asp-for="NewPost.Title" class="form-label"></label>
-                    <input asp-for="NewPost.Title" class="form-control" />
+                    <label for="editDisplayName" class="form-label">Display Name</label>
+                    <input class="form-control" id="editDisplayName" name="editModel.DisplayName" value="@Model.EditModel.DisplayName" />
+                    <span asp-validation-for="EditModel.DisplayName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label for="editBio" class="form-label">Bio</label>
+                    <textarea class="form-control" id="editBio" name="editModel.Bio" rows="3">@Model.EditModel.Bio</textarea>
+                    <span asp-validation-for="EditModel.Bio" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label for="editProfilePicture" class="form-label">Change Profile Picture</label>
+                    <input type="file" class="form-control" id="editProfilePicture" name="editModel.ProfilePicture" />
+                    <span asp-validation-for="EditModel.ProfilePicture" class="text-danger"></span>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- CREATE POST FORM -->
+    <div class="collapse @(showCreatePost ? "show" : "")" id="createPostForm">
+        <div class="card card-body">
+            <form method="post" enctype="multipart/form-data" asp-page-handler="CreatePost">
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                <div class="mb-3">
+                    <label for="newTitle" class="form-label">Title</label>
+                    <input class="form-control" id="newTitle" name="newPost.Title" value="@Model.NewPost.Title" />
                     <span asp-validation-for="NewPost.Title" class="text-danger"></span>
                 </div>
 
                 <div class="mb-3">
-                    <label asp-for="NewPost.Content" class="form-label"></label>
-                    <textarea asp-for="NewPost.Content" class="form-control" rows="4"></textarea>
+                    <label for="newContent" class="form-label">Content</label>
+                    <textarea class="form-control" id="newContent" name="newPost.Content" rows="4">@Model.NewPost.Content</textarea>
                     <span asp-validation-for="NewPost.Content" class="text-danger"></span>
                 </div>
 
                 <div class="mb-3">
-                    <label asp-for="ImageFile" class="form-label">Upload Image</label>
-                    <input asp-for="ImageFile" type="file" class="form-control" accept="image/*" aria-describedby="imageHelp" />
-                    <small id="imageHelp" class="form-text text-muted">Choose an image file to upload with your post.</small>
-                    <span asp-validation-for="ImageFile" class="text-danger"></span>
+                    <label for="imageFile" class="form-label">Upload Image</label>
+                    <input type="file" class="form-control" id="imageFile" name="imageFile" accept="image/*" />
+                    <small class="form-text text-muted">Choose an image file to upload with your post.</small>
+                    
                 </div>
 
                 <div class="mb-3">
@@ -57,12 +93,14 @@
                     <div>
                         @foreach (var category in Model.AvailableCategories)
                         {
+                            var isChecked = Model.NewPost.SelectedCategoryIds.Contains(category.Id) ? "checked" : "";
                             <div class="form-check form-check-inline">
                                 <input type="checkbox"
-                                       name="NewPost.SelectedCategoryIds"
+                                       class="form-check-input"
+                                       name="newPost.SelectedCategoryIds"
                                        value="@category.Id"
                                        id="cat_@category.Id"
-                                @(Model.NewPost.SelectedCategoryIds.Contains(category.Id) ? "checked" : "") />
+                                @isChecked />
                                 <label class="form-check-label" for="cat_@category.Id">@category.Name</label>
                             </div>
                         }
@@ -108,7 +146,6 @@
                 </div>
             }
         </div>
-
     }
     else
     {
