@@ -40,6 +40,19 @@ public class ProfileModel : PageModel
         public string? ImageUrl { get; set; }
     }
 
+    public class EditPostModelInput
+    {
+        public int Id { get; set; }
+
+        [Required]
+        public string Title { get; set; }
+
+        public string? Content { get; set; }
+
+        public IFormFile? ImageFile { get; set; }
+    }
+
+
     public class EditProfileModel
     {
         [Required]
@@ -152,6 +165,56 @@ public class ProfileModel : PageModel
         TempData["SuccessMessage"] = "Profile updated successfully.";
         return RedirectToPage();
     }
+
+    public async Task<IActionResult> OnPostEditPostAsync(int id, [FromForm] EditPostModelInput EditPostModel)
+    {
+        if (!ModelState.IsValid)
+        {
+            await LoadProfileDataAsync();
+            return Page();
+        }
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized();
+
+        var post = await _dbContext.Posts.FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id);
+        if (post == null) return NotFound();
+
+        post.Title = EditPostModel.Title;
+        post.Content = EditPostModel.Content ?? "";
+
+        if (EditPostModel.ImageFile != null)
+        {
+            var fileName = $"{Guid.NewGuid()}{Path.GetExtension(EditPostModel.ImageFile.FileName)}";
+            var uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "posts");
+            Directory.CreateDirectory(uploadFolder);
+            var filePath = Path.Combine(uploadFolder, fileName);
+            using var stream = new FileStream(filePath, FileMode.Create);
+            await EditPostModel.ImageFile.CopyToAsync(stream);
+            post.MainImageUrl = $"/uploads/posts/{fileName}";
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "Post updated successfully.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostDeletePostAsync(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized();
+
+        var post = await _dbContext.Posts.FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id);
+        if (post == null) return NotFound();
+
+        _dbContext.Posts.Remove(post);
+        await _dbContext.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "Post deleted successfully.";
+        return RedirectToPage();
+    }
+
 
     private async Task LoadProfileDataAsync()
     {
