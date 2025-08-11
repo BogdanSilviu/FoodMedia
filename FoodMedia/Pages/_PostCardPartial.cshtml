@@ -1,0 +1,37 @@
+﻿@model ProfileModel.NewPostInputModel
+
+<form method="post" enctype="multipart/form-data" asp-page-handler="CreatePost">
+    <div class="form-group">
+        <label asp-for="Title"></label>
+        <input asp-for="Title" class="form-control" />
+        <span asp-validation-for="Title" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Content"></label>
+        <textarea asp-for="Content" class="form-control"></textarea>
+        <span asp-validation-for="Content" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label>Categories</label>
+        @* You'll need to pass AvailableCategories from parent view to this partial as ViewData or ViewBag or Model property *@
+        <select asp-for="SelectedCategoryIds" class="form-control" multiple="multiple">
+            @foreach (var category in ViewBag.AvailableCategories as List<Category>)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Post Image</label>
+        <input asp-for="ImageUrl" type="file" name="imageFile" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Post</button>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

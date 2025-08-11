@@ -52,7 +52,6 @@ public class ProfileModel : PageModel
         public IFormFile? ImageFile { get; set; }
     }
 
-
     public class EditProfileModel
     {
         [Required]
@@ -63,16 +62,34 @@ public class ProfileModel : PageModel
         public IFormFile? ProfilePicture { get; set; }
     }
 
+    public class NewPostModel
+    {
+        public string Title { get; set; }
+        public string Content { get; set; }
+        public List<int> SelectedCategoryIds { get; set; } = new List<int>();
+    }
+
+
     public async Task<IActionResult> OnGetAsync()
     {
-        await LoadProfileDataAsync();
-
         var user = await _userManager.GetUserAsync(User);
-        if (user != null)
+        if (user == null)
+            return RedirectToPage("/Account/Login");
+
+        DisplayName = user.DisplayName;
+        Bio = user.Bio;
+        ProfilePictureUrl = user.ProfilePictureUrl;
+
+        // Populate AvailableCategories and initialize models
+        AvailableCategories = await _dbContext.Categories.ToListAsync();
+
+        EditModel = new EditProfileModel
         {
-            EditModel.DisplayName = user.DisplayName;
-            EditModel.Bio = user.Bio;
-        }
+            DisplayName = DisplayName,
+            Bio = Bio
+        };
+
+        NewPost = new NewPostInputModel();
 
         return Page();
     }
@@ -83,11 +100,6 @@ public class ProfileModel : PageModel
     {
         if (!ModelState.IsValid)
         {
-            Console.WriteLine("CreatePost: ModelState is invalid.");
-            foreach (var kvp in ModelState)
-                foreach (var error in kvp.Value.Errors)
-                    Console.WriteLine($"Field: {kvp.Key} — Error: {error.ErrorMessage}");
-
             await LoadProfileDataAsync();
             ViewData["ShowCreatePostForm"] = true;
             NewPost = newPost;
@@ -131,11 +143,6 @@ public class ProfileModel : PageModel
     {
         if (!ModelState.IsValid)
         {
-            Console.WriteLine("EditProfile: ModelState is invalid.");
-            foreach (var kvp in ModelState)
-                foreach (var error in kvp.Value.Errors)
-                    Console.WriteLine($"Field: {kvp.Key} — Error: {error.ErrorMessage}");
-
             await LoadProfileDataAsync();
             ViewData["ShowEditProfileForm"] = true;
             EditModel = editModel;
@@ -166,7 +173,9 @@ public class ProfileModel : PageModel
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostEditPostAsync(int id, [FromForm] EditPostModelInput EditPostModel)
+    public async Task<IActionResult> OnPostEditPostAsync(EditPostModelInput EditPostModel)
+
+
     {
         if (!ModelState.IsValid)
         {
@@ -177,7 +186,8 @@ public class ProfileModel : PageModel
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Unauthorized();
 
-        var post = await _dbContext.Posts.FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id);
+        var post = await _dbContext.Posts.FirstOrDefaultAsync(p => p.Id == EditPostModel.Id && p.UserId == user.Id);
+
         if (post == null) return NotFound();
 
         post.Title = EditPostModel.Title;
@@ -215,7 +225,6 @@ public class ProfileModel : PageModel
         return RedirectToPage();
     }
 
-
     private async Task LoadProfileDataAsync()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -226,8 +235,10 @@ public class ProfileModel : PageModel
             ProfilePictureUrl = user.ProfilePictureUrl ?? "https://example.com/default-profile.jpg";
 
             UserPosts = await _dbContext.Posts
-                .Include(p => p.PostCategories)
-                .ThenInclude(pc => pc.Category)
+                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
+                .Include(p => p.Likes)
+                // Include Comments and comment user to display commenter names
+                .Include(p => p.Comments).ThenInclude(c => c.User)
                 .Where(p => p.UserId == user.Id)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
@@ -235,4 +246,77 @@ public class ProfileModel : PageModel
 
         AvailableCategories = await _dbContext.Categories.ToListAsync();
     }
+
+    public async Task<IActionResult> OnPostAddCommentAsync(int postId, string commentContent)
+    {
+        if (string.IsNullOrWhiteSpace(commentContent))
+        {
+            // You might want to handle error feedback here if needed
+            return RedirectToPage();
+        }
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Challenge();
+
+        var comment = new Comment
+        {
+            PostId = postId,
+            UserId = user.Id,
+            Content = commentContent,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.Comments.Add(comment);
+        await _dbContext.SaveChangesAsync();
+
+        // Reload posts and comments so the new comment appears
+        await LoadProfileDataAsync();
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnGetLoadPostsAsync(int page = 0, int pageSize = 5)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized();
+
+        var posts = await _dbContext.Posts
+            .Where(p => p.UserId == user.Id)
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip(page * pageSize)
+            .Take(pageSize)
+            .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
+            .Include(p => p.Likes)
+            .Include(p => p.Comments).ThenInclude(c => c.User)
+            .ToListAsync();
+
+        var result = posts.Select(p => new
+        {
+            p.Id,
+            p.Title,
+            p.Content,
+            p.MainImageUrl,
+            CreatedAt = p.CreatedAt,
+            Likes = p.Likes.Select(l => new { l.Id }), // minimal data just for count
+            Comments = p.Comments.Select(c => new {
+                c.Id,
+                c.Content,
+                User = new { displayName = c.User.DisplayName }
+            }).ToList(),
+            PostCategories = p.PostCategories.Select(pc => new {
+                pc.Category.Id,
+                pc.Category.Name
+            }).ToList()
+        });
+
+        return new JsonResult(new { posts = result });
+    }
+
+    // Classes for models used in forms - adjust to your actual models
+  
+   
+    // Your ApplicationUser, ApplicationDbContext, Category classes should be defined elsewhere
 }
+
