@@ -1,0 +1,13 @@
+﻿@model List<ApplicationUser>
+
+<ul class="list-group">
+    @foreach (var user in Model)
+    {
+        <li class="list-group-item d-flex align-items-center">
+            <img src="@user.ProfilePictureUrl" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;" />
+            <a asp-page="/Profile" asp-route-username="@user.UserName">
+                @user.DisplayName ?? user.UserName
+            </a>
+        </li>
+    }
+</ul>

@@ -1,0 +1,114 @@
+﻿@page
+@model FeedModel
+@{
+    ViewData["Title"] = "Feed";
+}
+
+<div class="container-fluid">
+    <div class="row">
+
+        <!-- LEFT COLUMN -->
+        @if (User.Identity?.IsAuthenticated == true && Model.ActiveFollowees?.Any() == true)
+        {
+            <div class="col-md-3 d-none d-md-block">
+                <h5>Following</h5>
+                <partial name="_FollowList" model="Model.ActiveFollowees" />
+            </div>
+        }
+
+        <!-- MIDDLE COLUMN -->
+        <div class="col-md-6">
+            <div id="feed-container">
+                @if (!Model.FeedPosts.Any())
+                {
+                    <p class="text-muted">No posts to display.</p>
+                }
+                else
+                {
+                    foreach (var post in Model.FeedPosts)
+                    {
+                        <partial name="_PostCard" model="post" />
+                    }
+                }
+            </div>
+
+            @if (Model.HasMorePosts)
+            {
+                <div class="text-center my-3">
+                    <button id="load-more" class="btn btn-outline-primary">Load More</button>
+                </div>
+            }
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        @if (Model.AvailableCategories?.Any() == true)
+        {
+            <div class="col-md-3 d-none d-md-block">
+                <h5>Categories</h5>
+                <ul class="list-group">
+                    @foreach (var cat in Model.AvailableCategories)
+                    {
+                        <li class="list-group-item">
+                            <a href="#" class="category-filter" data-category="@cat.Id">@cat.Name</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let page = 0; // start from 0
+        let loading = false;
+        let hasMorePosts = @Model.HasMorePosts.ToString().ToLower();
+        const feedContainer = document.getElementById("feed-container");
+
+        function loadPosts() {
+            if (!hasMorePosts || loading) return;
+            loading = true;
+
+            fetch(`/Feed?handler=LoadFeed&page=${page}`)
+                .then(res => res.text())
+                .then(html => {
+                    if (html.trim().length === 0) {
+                        hasMorePosts = false;
+                        return;
+                    }
+                    feedContainer.insertAdjacentHTML('beforeend', html);
+                    page++;
+                })
+                .finally(() => {
+                    loading = false;
+                });
+        }
+
+        // Attach button
+        document.getElementById("load-more")?.addEventListener("click", () => {
+            loadPosts();
+        });
+
+        // Infinite scroll
+        window.addEventListener("scroll", () => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+                loadPosts();
+            }
+        });
+
+        // Category filtering
+        document.querySelectorAll(".category-filter").forEach(catLink => {
+            catLink.addEventListener("click", function (e) {
+                e.preventDefault();
+                const catId = this.getAttribute("data-category");
+                fetch(`/Feed?handler=LoadFeed&page=0&categoryId=${catId}`)
+                    .then(res => res.text())
+                    .then(html => {
+                        feedContainer.innerHTML = html;
+                        page = 1;
+                        hasMorePosts = true;
+                    });
+            });
+        });
+    </script>
+}

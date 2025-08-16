@@ -1,0 +1,6 @@
+﻿@model IEnumerable<Post>
+
+@foreach (var post in Model)
+{
+    <partial name="_PostCard" model="post" />
+}

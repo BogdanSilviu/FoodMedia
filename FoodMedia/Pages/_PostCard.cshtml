@@ -1,0 +1,27 @@
+﻿@model Post
+
+<div class="card mb-3">
+    @if (!string.IsNullOrEmpty(Model.MainImageUrl))
+    {
+        <img src="@Model.MainImageUrl" class="card-img-top" alt="@Model.Title" />
+    }
+    <div class="card-body">
+        <h5 class="card-title">@Model.Title</h5>
+        <p class="card-text">@Model.Content</p>
+        <p class="card-text">
+            <small class="text-muted">
+                Posted by
+                <a asp-page="/Profile" asp-route-username="@Model.User.UserName">
+                    @(Model.User.DisplayName ?? Model.User.UserName)
+                </a>
+
+            </small>
+        </p>
+        <p>
+            @foreach (var cat in Model.PostCategories.Select(pc => pc.Category))
+            {
+                <span class="badge bg-primary">@cat.Name</span>
+            }
+        </p>
+    </div>
+</div>
