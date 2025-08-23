@@ -15,28 +15,9 @@
         <div class="d-flex flex-column gap-4">
             @foreach (var post in Model.UserPosts)
             {
-                <div class="card w-100">
-                    @if (!string.IsNullOrEmpty(post.MainImageUrl))
-                    {
-                        <img src="@post.MainImageUrl" class="card-img-top" />
-                    }
-                    <div class="card-body">
-                        <h5 class="card-title">@post.Title</h5>
-                        <p class="text-muted"><small>@post.CreatedAt.ToLocalTime().ToString("g")</small></p>
-                        <p>@post.Content</p>
-                        @if (post.PostCategories.Any())
-                        {
-                            <div>
-                                <strong>Categories:</strong>
-                                @foreach (var cat in post.PostCategories)
-                                {
-                                    <span class="badge bg-secondary">@cat.Category.Name</span>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
+                @await Html.PartialAsync("_PostCard", post)
             }
+
         </div>
     }
     else

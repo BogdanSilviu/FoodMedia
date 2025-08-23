@@ -1,27 +1,94 @@
 ﻿@model Post
 
-<div class="card mb-3">
+<div class="card mb-3" id="post-@Model.Id">
     @if (!string.IsNullOrEmpty(Model.MainImageUrl))
     {
-        <img src="@Model.MainImageUrl" class="card-img-top" alt="@Model.Title" />
+        <img src="@Model.MainImageUrl" class="card-img-top" alt="Post image">
     }
     <div class="card-body">
         <h5 class="card-title">@Model.Title</h5>
         <p class="card-text">@Model.Content</p>
-        <p class="card-text">
-            <small class="text-muted">
-                Posted by
-                <a asp-page="/Profile" asp-route-username="@Model.User.UserName">
-                    @(Model.User.DisplayName ?? Model.User.UserName)
-                </a>
+        <p class="text-muted mb-1">
+            Posted by
+            <a href="/Profiles/View/@Model.User.Id">
+                @(Model.User.DisplayName ?? Model.User.UserName)
+            </a>
+            on @Model.CreatedAt.ToString("g")
+        </p>
 
-            </small>
-        </p>
-        <p>
-            @foreach (var cat in Model.PostCategories.Select(pc => pc.Category))
-            {
-                <span class="badge bg-primary">@cat.Name</span>
-            }
-        </p>
+
+
+        <div class="d-flex align-items-center mb-2">
+            <button class="btn btn-sm btn-outline-primary like-btn" data-postid="@Model.Id">
+                Like (<span id="like-count-@Model.Id">@Model.Likes.Count</span>)
+            </button>
+
+        </div>
+
+        <div class="comments mb-2">
+            <strong>Comments:</strong>
+            <ul class="list-group list-group-flush" id="comment-list-@Model.Id">
+                @foreach (var comment in Model.Comments.OrderBy(c => c.CreatedAt))
+                {
+                    <li class="list-group-item">
+                        <strong>@(comment.User.DisplayName ?? comment.User.UserName):</strong> @comment.Content
+                        <small class="text-muted">(@comment.CreatedAt.ToString("g"))</small>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <div class="input-group mb-2">
+                <input type="text" class="form-control comment-input" placeholder="Add a comment..." data-postid="@Model.Id">
+                <button class="btn btn-outline-secondary add-comment-btn" data-postid="@Model.Id">Post</button>
+            </div>
+        }
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Like button
+        document.querySelectorAll(".like-btn").forEach(btn => {
+            btn.addEventListener("click", async function () {
+                const postId = this.getAttribute("data-postid");
+                const res = await fetch(`/Feed?handler=ToggleLike&postId=${postId}`, { method: "POST" });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById(`like-count-${postId}`).innerText = data.likes;
+                }
+            });
+        });
+
+        // Add comment button
+        document.querySelectorAll(".add-comment-btn").forEach(btn => {
+            btn.addEventListener("click", async function () {
+                const postId = this.getAttribute("data-postid");
+                const input = document.querySelector(`.comment-input[data-postid='${postId}']`);
+                const content = input.value.trim();
+                if (!content) return;
+
+                const formData = new URLSearchParams();
+                formData.append("postId", postId);
+                formData.append("content", content);
+
+                const res = await fetch(`/Feed?handler=AddComment`, {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    const commentList = document.getElementById(`comment-list-${postId}`);
+                    const li = document.createElement("li");
+                    li.classList.add("list-group-item");
+                    li.innerHTML = `<strong>${data.comment.user}:</strong> ${data.comment.content} <small class="text-muted">(${data.comment.createdAt})</small>`;
+                    commentList.appendChild(li);
+                    input.value = "";
+                }
+            });
+        });
+    </script>
+}

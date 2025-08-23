@@ -28,6 +28,8 @@ public class FeedModel : PageModel
         // Load categories for sidebar
         AvailableCategories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
 
+        IQueryable<Post> query;
+
         if (User.Identity?.IsAuthenticated == true && user != null)
         {
             ActiveFollowees = await _db.UserFollows
@@ -37,60 +39,35 @@ public class FeedModel : PageModel
 
             var followedIds = ActiveFollowees.Select(f => f.Id).ToList();
 
-            IQueryable<Post> query;
+            query = _db.Posts
+                .Include(p => p.User)
+                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
+                .Include(p => p.Likes)
+                .Include(p => p.Comments).ThenInclude(c => c.User);
 
             if (followedIds.Any())
-            {
-                query = _db.Posts
-                    .Include(p => p.User)
-                    .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
-                    .Where(p => followedIds.Contains(p.UserId));
-            }
-            else
-            {
-                // fallback for empty follow list
-                query = _db.Posts
-                    .Include(p => p.User)
-                    .Include(p => p.PostCategories).ThenInclude(pc => pc.Category);
-            }
-
-            if (categoryId.HasValue)
-                query = query.Where(p => p.PostCategories.Any(pc => pc.CategoryId == categoryId.Value));
-
-            FeedPosts = await query
-                .OrderByDescending(p => p.CreatedAt)
-                .Skip(page * 3)
-                .Take(3)
-                .ToListAsync();
-
-            HasMorePosts = FeedPosts.Count == 3;
+                query = query.Where(p => followedIds.Contains(p.UserId));
         }
-
         else
         {
-            // Guest mode: show popular and recent posts
-            var popularPosts = await _db.Posts
+            // guest fallback
+            query = _db.Posts
                 .Include(p => p.User)
                 .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
-                .OrderByDescending(p => p.Likes.Count) // Make sure Likes navigation is loaded or consider a like count field for performance
-                .Take(5)
-                .ToListAsync();
-
-            var latestPosts = await _db.Posts
-                .Include(p => p.User)
-                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
-                .OrderByDescending(p => p.CreatedAt)
-                .Take(5)
-                .ToListAsync();
-
-            FeedPosts = popularPosts
-                .Concat(latestPosts)
-                .Distinct()
-                .OrderByDescending(p => p.CreatedAt)
-                .ToList();
-
-            HasMorePosts = false;
+                .Include(p => p.Likes)
+                .Include(p => p.Comments).ThenInclude(c => c.User);
         }
+
+        if (categoryId.HasValue)
+            query = query.Where(p => p.PostCategories.Any(pc => pc.CategoryId == categoryId.Value));
+
+        FeedPosts = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip(page * 3)
+            .Take(3)
+            .ToListAsync();
+
+        HasMorePosts = FeedPosts.Count == 3;
 
         return Page();
     }
@@ -108,28 +85,22 @@ public class FeedModel : PageModel
                 .Select(f => f.FolloweeId)
                 .ToListAsync();
 
+            query = _db.Posts
+                .Include(p => p.User)
+                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
+                .Include(p => p.Likes)
+                .Include(p => p.Comments).ThenInclude(c => c.User);
+
             if (followedIds.Any())
-            {
-                // show posts from followees
-                query = _db.Posts
-                    .Include(p => p.User)
-                    .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
-                    .Where(p => followedIds.Contains(p.UserId));
-            }
-            else
-            {
-                // fallback: show all posts
-                query = _db.Posts
-                    .Include(p => p.User)
-                    .Include(p => p.PostCategories).ThenInclude(pc => pc.Category);
-            }
+                query = query.Where(p => followedIds.Contains(p.UserId));
         }
         else
         {
-            // guest fallback: show all posts
             query = _db.Posts
                 .Include(p => p.User)
-                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category);
+                .Include(p => p.PostCategories).ThenInclude(pc => pc.Category)
+                .Include(p => p.Likes)
+                .Include(p => p.Comments).ThenInclude(c => c.User);
         }
 
         if (categoryId.HasValue)
@@ -141,8 +112,75 @@ public class FeedModel : PageModel
             .Take(3)
             .ToListAsync();
 
-        // Return partial view with only the new batch of posts
+        // Return partial view with new posts
         return Partial("_PostCardList", posts);
     }
+
+    [ValidateAntiForgeryToken]
+    public async Task<JsonResult> OnPostToggleLikeAsync([FromBody] ToggleLikeRequest req)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return new JsonResult(new { success = false });
+
+        var post = await _db.Posts.FindAsync(req.PostId);
+        if (post == null) return new JsonResult(new { success = false });
+
+        var existingLike = await _db.PostLikes
+            .FirstOrDefaultAsync(l => l.PostId == req.PostId && l.UserId == user.Id);
+
+        if (existingLike != null)
+        {
+            _db.PostLikes.Remove(existingLike);
+        }
+        else
+        {
+            _db.PostLikes.Add(new PostLike { PostId = req.PostId, UserId = user.Id, LikedAt = DateTime.UtcNow });
+        }
+
+        await _db.SaveChangesAsync();
+
+        // Get the actual like count from DB
+        var likeCount = await _db.PostLikes.CountAsync(l => l.PostId == req.PostId);
+
+        return new JsonResult(new { success = true, likes = likeCount });
+    }
+
+
+    public class ToggleLikeRequest
+    {
+        public int PostId { get; set; }
+    }
+
+
+    public async Task<JsonResult> OnPostAddCommentAsync(int postId, string content)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null || string.IsNullOrWhiteSpace(content))
+            return new JsonResult(new { success = false });
+
+        var comment = new Comment
+        {
+            PostId = postId,
+            UserId = user.Id,
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Comments.Add(comment);
+        await _db.SaveChangesAsync();
+
+        return new JsonResult(new
+        {
+            success = true,
+            comment = new
+            {
+                user = user.DisplayName ?? user.UserName,
+                content = comment.Content,
+                createdAt = comment.CreatedAt.ToString("g")
+            }
+        });
+    }
+
+
 
 }
