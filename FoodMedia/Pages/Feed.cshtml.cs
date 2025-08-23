@@ -128,13 +128,17 @@ public class FeedModel : PageModel
         var existingLike = await _db.PostLikes
             .FirstOrDefaultAsync(l => l.PostId == req.PostId && l.UserId == user.Id);
 
+        bool liked;
+
         if (existingLike != null)
         {
             _db.PostLikes.Remove(existingLike);
+            liked = false;
         }
         else
         {
             _db.PostLikes.Add(new PostLike { PostId = req.PostId, UserId = user.Id, LikedAt = DateTime.UtcNow });
+            liked = true;
         }
 
         await _db.SaveChangesAsync();
@@ -142,8 +146,9 @@ public class FeedModel : PageModel
         // Get the actual like count from DB
         var likeCount = await _db.PostLikes.CountAsync(l => l.PostId == req.PostId);
 
-        return new JsonResult(new { success = true, likes = likeCount });
+        return new JsonResult(new { success = true, likes = likeCount, liked });
     }
+
 
 
     public class ToggleLikeRequest

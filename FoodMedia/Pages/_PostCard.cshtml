@@ -1,63 +1,139 @@
 ﻿@model Post
 
-<div class="card mb-3" id="post-@Model.Id">
+<div class="card mb-4 shadow-sm rounded" id="post-@Model.Id" style="overflow: hidden; border-radius: 1rem; background-color: #fdfdfd;">
+    <!-- Title Section -->
+    <div class="card-body p-3 p-md-4 border-bottom">
+        <h4 class="fw-bold mb-2 text-dark">@Model.Title</h4>
+    </div>
+
+    <!-- Image Section -->
     @if (!string.IsNullOrEmpty(Model.MainImageUrl))
     {
-        <img src="@Model.MainImageUrl" class="card-img-top" alt="Post image">
+        <div class="card-img-container">
+            <img src="@Model.MainImageUrl" class="img-fluid w-100" alt="Post image" style="max-height: 350px; object-fit: cover;">
+        </div>
     }
-    <div class="card-body">
-        <h5 class="card-title">@Model.Title</h5>
-        <p class="card-text">@Model.Content</p>
-        <p class="text-muted mb-1">
-            Posted by
-            <a href="/Profiles/View/@Model.User.Id">
+
+    <!-- Author & Date Section -->
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom bg-light">
+        <div class="d-flex align-items-center gap-2">
+            @if (!string.IsNullOrEmpty(Model.User.ProfilePictureUrl))
+            {
+                <img src="@Model.User.ProfilePictureUrl" alt="Profile picture" class="rounded-circle" style="width:35px; height:35px; object-fit:cover;">
+            }
+            else
+            {
+                <div class="avatar-placeholder rounded-circle bg-secondary" style="width: 35px; height: 35px;"></div>
+            }
+
+            <a href="/Profiles/View/@Model.User.Id" class="text-decoration-none fw-medium text-primary">
                 @(Model.User.DisplayName ?? Model.User.UserName)
             </a>
-            on @Model.CreatedAt.ToString("g")
-        </p>
-
-
-
-        <div class="d-flex align-items-center mb-2">
-            <button class="btn btn-sm btn-outline-primary like-btn" data-postid="@Model.Id">
-                Like (<span id="like-count-@Model.Id">@Model.Likes.Count</span>)
-            </button>
-
         </div>
+        <small class="text-muted">@Model.CreatedAt.ToString("g")</small>
+    </div>
 
-        <div class="comments mb-2">
-            <strong>Comments:</strong>
-            <ul class="list-group list-group-flush" id="comment-list-@Model.Id">
-                @foreach (var comment in Model.Comments.OrderBy(c => c.CreatedAt))
-                {
-                    <li class="list-group-item">
-                        <strong>@(comment.User.DisplayName ?? comment.User.UserName):</strong> @comment.Content
-                        <small class="text-muted">(@comment.CreatedAt.ToString("g"))</small>
-                    </li>
-                }
-            </ul>
-        </div>
 
-        @if (User.Identity?.IsAuthenticated == true)
-        {
-            <div class="input-group mb-2">
-                <input type="text" class="form-control comment-input" placeholder="Add a comment..." data-postid="@Model.Id">
-                <button class="btn btn-outline-secondary add-comment-btn" data-postid="@Model.Id">Post</button>
+    <!-- Content Section -->
+    <div class="px-3 py-3 border-bottom">
+        <p class="text-secondary mb-0">@Model.Content</p>
+    </div>
+
+    <!-- Action Bar: Like & View Comments -->
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <button class="btn btn-sm btn-outline-primary like-btn d-flex align-items-center gap-1" data-postid="@Model.Id">
+            <span class="like-icon">👍</span>
+            <span>Like (<span class="like-count" data-postid="@Model.Id">@Model.Likes.Count</span>)</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#commentsModal_@Model.Id">
+            Comments (@Model.Comments.Count)
+        </button>
+    </div>
+
+    <!-- Preview Comment Section -->
+    @{
+        var previewComment = Model.Comments.OrderByDescending(c => c.CreatedAt).FirstOrDefault();
+    }
+    @if (previewComment != null)
+    {
+        <div class="px-3 py-2">
+            <div class="p-2 rounded bg-light">
+                <strong>@(previewComment.User.DisplayName ?? previewComment.User.UserName):</strong>
+                @previewComment.Content
+                <small class="text-muted">(@previewComment.CreatedAt.ToString("g"))</small>
             </div>
-        }
+        </div>
+    }
+
+    <!-- Comments Modal -->
+    <div class="modal fade" id="commentsModal_@Model.Id" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content rounded-3">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Comments</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body d-flex flex-column" style="max-height: 70vh;">
+                    <ul class="list-unstyled mb-2 modal-comment-list flex-grow-1 overflow-auto">
+                        @foreach (var comment in Model.Comments.OrderBy(c => c.CreatedAt))
+                        {
+                            <li class="mb-2 p-2 rounded bg-light">
+                                <strong>@(comment.User.DisplayName ?? comment.User.UserName):</strong>
+                                @comment.Content
+                                <small class="text-muted">(@comment.CreatedAt.ToString("g"))</small>
+                            </li>
+                        }
+                    </ul>
+
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="mt-2 d-flex gap-2">
+                            <input type="text" class="form-control comment-input" placeholder="Add a comment..." data-postid="@Model.Id">
+                            <button class="btn btn-primary add-comment-btn" data-postid="@Model.Id">Post</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
     <script>
-        // Like button
+        // Like button (with visual feedback)
         document.querySelectorAll(".like-btn").forEach(btn => {
             btn.addEventListener("click", async function () {
-                const postId = this.getAttribute("data-postid");
-                const res = await fetch(`/Feed?handler=ToggleLike&postId=${postId}`, { method: "POST" });
+                const postId = parseInt(this.dataset.postid);
+                const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+                const res = await fetch(`/Feed?handler=ToggleLike`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": token
+                    },
+                    body: JSON.stringify({ postId })
+                });
+
                 const data = await res.json();
-                if (data.success) {
-                    document.getElementById(`like-count-${postId}`).innerText = data.likes;
+                if (!data.success) return;
+
+                const likeCount = btn.querySelector(".like-count");
+                const likeIcon = btn.querySelector(".like-icon");
+
+                if (likeCount) likeCount.innerText = data.likes;
+
+                // Visual feedback
+                if (data.liked) {
+                    likeIcon.innerText = "❤️";
+                    btn.classList.remove("btn-outline-primary");
+                    btn.classList.add("btn-primary", "text-white");
+                    btn.setAttribute("aria-pressed", "true");
+                } else {
+                    likeIcon.innerText = "👍";
+                    btn.classList.remove("btn-primary", "text-white");
+                    btn.classList.add("btn-outline-primary");
+                    btn.setAttribute("aria-pressed", "false");
                 }
             });
         });
@@ -65,8 +141,11 @@
         // Add comment button
         document.querySelectorAll(".add-comment-btn").forEach(btn => {
             btn.addEventListener("click", async function () {
-                const postId = this.getAttribute("data-postid");
-                const input = document.querySelector(`.comment-input[data-postid='${postId}']`);
+                const postId = this.dataset.postid;
+                const modal = document.getElementById(`commentsModal_${postId}`);
+                const input = modal.querySelector(".comment-input");
+                if (!input) return;
+
                 const content = input.value.trim();
                 if (!content) return;
 
@@ -80,14 +159,37 @@
                 });
 
                 const data = await res.json();
-                if (data.success) {
-                    const commentList = document.getElementById(`comment-list-${postId}`);
+                if (!data.success) return;
+
+                // 1️⃣ Update modal comment list
+                const modalList = modal.querySelector(".modal-comment-list");
+                if (modalList) {
                     const li = document.createElement("li");
-                    li.classList.add("list-group-item");
+                    li.classList.add("mb-2");
                     li.innerHTML = `<strong>${data.comment.user}:</strong> ${data.comment.content} <small class="text-muted">(${data.comment.createdAt})</small>`;
-                    commentList.appendChild(li);
-                    input.value = "";
+                    modalList.appendChild(li);
+                    // Scroll to bottom
+                    modalList.scrollTop = modalList.scrollHeight;
                 }
+
+                // 2️⃣ Update preview (latest comment only, include date)
+                const card = document.getElementById(`post-${postId}`);
+                const previewList = card.querySelector(".preview-comment-list");
+                if (previewList) {
+                    previewList.innerHTML = `<li class="small text-muted mb-2">
+                        <strong>${data.comment.user}:</strong> ${data.comment.content} <small class="text-muted">(${data.comment.createdAt})</small>
+                    </li>`;
+                }
+
+                // 3️⃣ Update "View all comments" button count
+                const viewBtn = card.querySelector(`button[data-bs-target='#commentsModal_${postId}']`);
+                if (viewBtn) {
+                    const match = viewBtn.textContent.match(/\d+/);
+                    const count = match ? parseInt(match[0]) + 1 : 1;
+                    viewBtn.textContent = `View all comments (${count})`;
+                }
+
+                input.value = "";
             });
         });
     </script>

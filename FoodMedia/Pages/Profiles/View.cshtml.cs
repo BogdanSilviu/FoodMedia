@@ -34,11 +34,15 @@ public class ViewModel : PageModel
         ProfilePictureUrl = user.ProfilePictureUrl ?? "/images/default-profile.png";
 
         UserPosts = await _db.Posts
-            .Where(p => p.UserId == userId)
-            .Include(p => p.PostCategories)
-                .ThenInclude(pc => pc.Category)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToListAsync();
+    .Where(p => p.UserId == userId)
+    .Include(p => p.PostCategories)
+        .ThenInclude(pc => pc.Category)
+    .Include(p => p.Likes) // include likes
+    .Include(p => p.Comments)
+        .ThenInclude(c => c.User) // include comment user
+    .OrderByDescending(p => p.CreatedAt)
+    .ToListAsync();
+
 
         return Page();
     }

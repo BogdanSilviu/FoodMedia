@@ -4,28 +4,52 @@
 	ViewData["Title"] = "Feed";
 }
 
-<div class="container-fluid">
+<div class="container-fluid mt-4">
 	<div class="row">
 
-		<!-- LEFT COLUMN -->
-		@if (User.Identity?.IsAuthenticated == true && Model.ActiveFollowees?.Any() == true)
-		{
-			<div class="col-md-3 d-none d-md-block">
-				<h5>Following</h5>
-				<partial name="_FollowList" model="Model.ActiveFollowees" />
-			</div>
-		}
+        <!-- LEFT COLUMN: Following -->
+        <div class="col-md-3 d-none d-md-block">
+            <div class="position-sticky" style="top: 20px;">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        Following
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @if (User.Identity?.IsAuthenticated != true)
+                        {
+                            <div class="list-group-item">
+                                You are not logged in. Please log in to see who you follow.
+                            </div>
+                        }
+                        else if (Model.ActiveFollowees == null || !Model.ActiveFollowees.Any())
+                        {
+                            <div class="list-group-item">
+                                You are not following anyone yet.
+                            </div>
+                        }
+                        else
+                        {
+                            <partial name="_FollowList" model="Model.ActiveFollowees" />
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
 
-		<!-- MIDDLE COLUMN -->
+
+
+		<!-- MIDDLE COLUMN: Feed -->
 		<div class="col-md-6">
 			<div id="feed-container">
 				@if (!Model.FeedPosts.Any())
 				{
-					<p class="text-muted">No posts to display.</p>
+					<div class="alert alert-secondary text-center">
+						No posts to display.
+					</div>
 				}
 				else
 				{
-					foreach (var post in Model.FeedPosts)
+					@foreach (var post in Model.FeedPosts)
 					{
 						<partial name="_PostCard" model="post" />
 					}
@@ -35,165 +59,196 @@
 			@if (Model.HasMorePosts)
 			{
 				<div class="text-center my-3">
-					<button id="load-more" class="btn btn-outline-primary">Load More</button>
+					<button id="load-more" class="btn btn-outline-primary btn-lg">Load More</button>
 				</div>
 			}
 		</div>
 
-		<!-- RIGHT COLUMN -->
+		<!-- RIGHT COLUMN: Categories -->
 		@if (Model.AvailableCategories?.Any() == true)
 		{
 			<div class="col-md-3 d-none d-md-block">
-				<h5>Categories</h5>
-				<ul class="list-group">
-					@foreach (var cat in Model.AvailableCategories)
-					{
-						<li class="list-group-item">
-							<a href="#" class="category-filter" data-category="@cat.Id">@cat.Name</a>
-						</li>
-					}
-				</ul>
+				<div class="position-sticky" style="top: 20px;">
+					<div class="card shadow-sm mb-4">
+						<div class="card-header bg-secondary text-white">
+							Categories
+						</div>
+						<ul class="list-group list-group-flush">
+							@foreach (var cat in Model.AvailableCategories)
+							{
+								<li class="list-group-item">
+									<a href="#" class="category-filter text-decoration-none" data-category="@cat.Id">
+										@cat.Name
+									</a>
+								</li>
+							}
+						</ul>
+					</div>
+				</div>
 			</div>
+
 		}
 	</div>
 </div>
 
+
 @section Scripts {
-	<script>
-		let page = 0;
-		let loading = false;
-		let hasMorePosts = @Model.HasMorePosts.ToString().ToLower();
-		const feedContainer = document.getElementById("feed-container");
+    <script>
+        let page = 0;
+        let loading = false;
+        let hasMorePosts = @Model.HasMorePosts.ToString().ToLower();
+        const feedContainer = document.getElementById("feed-container");
 
-		// Attach events to all posts in a container
-		function attachPostEvents(container) {
-			// Like buttons
-					container.querySelectorAll(".like-btn").forEach(btn => {
-			if (!btn.dataset.listenerAttached) {
-				btn.dataset.listenerAttached = true;
-				btn.addEventListener("click", async function () {
-					const postId = btn.dataset.postid;
-					const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        function attachPostEvents(container) {
+            // Like buttons
+            container.querySelectorAll(".like-btn").forEach(btn => {
+                if (!btn.dataset.listenerAttached) {
+                    btn.dataset.listenerAttached = true;
 
-					try {
-						const res = await fetch(`/Feed?handler=ToggleLike`, {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"RequestVerificationToken": token
-							},
-							body: JSON.stringify({ postId })
-						});
+                    btn.addEventListener("click", async () => {
+                        const postId = btn.dataset.postid;
+                        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
 
-						const data = await res.json();
+                        const res = await fetch(`/Feed?handler=ToggleLike`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "RequestVerificationToken": token
+                            },
+                            body: JSON.stringify({ postId })
+                        });
 
-						if (data.success) {
-							// Always set the like count from the server
-							const likeCountEl = document.getElementById(`like-count-${postId}`);
-							if (likeCountEl) likeCountEl.innerText = data.likes;
+                        const data = await res.json();
+                        if (!data.success) return;
 
-							// Update button state
-							if (data.liked) {
-								btn.classList.add("liked"); // optional CSS class for active like
-							} else {
-								btn.classList.remove("liked");
-							}
-						}
-					} catch (err) {
-						console.error("Error toggling like:", err);
-					}
-				});
-			}
-		});
+                        const likeCount = container.querySelector(`.like-count[data-postid='${postId}']`);
+                        if (likeCount) likeCount.innerText = data.likes;
 
+                        // Update button appearance
+                        if (data.liked) {
+                            btn.classList.remove("btn-outline-primary");
+                            btn.classList.add("btn-primary", "text-white");
+                            btn.innerHTML = `❤️ Like (<span class="like-count" data-postid="${postId}">${data.likes}</span>)`;
+                        } else {
+                            btn.classList.remove("btn-primary", "text-white");
+                            btn.classList.add("btn-outline-primary");
+                            btn.innerHTML = `👍 Like (<span class="like-count" data-postid="${postId}">${data.likes}</span>)`;
+                        }
+                    });
+                }
+            });
 
-			// Comment buttons
-			container.querySelectorAll(".add-comment-btn").forEach(btn => {
-				if (!btn.dataset.listenerAttached) {
-					btn.dataset.listenerAttached = true;
-					btn.addEventListener("click", async () => {
-						const postId = btn.dataset.postid;
-						const input = container.querySelector(`.comment-input[data-postid='${postId}']`);
-						const content = input.value.trim();
-						if (!content) return;
+            // Add comment buttons
+            container.querySelectorAll(".add-comment-btn").forEach(btn => {
+                if (!btn.dataset.listenerAttached) {
+                    btn.dataset.listenerAttached = true;
 
-								const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-		const formData = new URLSearchParams();
-		formData.append("postId", postId);
-		formData.append("content", content);
+                    btn.addEventListener("click", async () => {
+                        const postId = btn.dataset.postid;
+                        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
 
-		const res = await fetch(`/Feed?handler=AddComment`, {
-			method: "POST",
-			headers: {
-				"RequestVerificationToken": token,
-				"Content-Type": "application/x-www-form-urlencoded"
-			},
-			body: formData
-		});
+                        const modal = document.getElementById(`commentsModal_${postId}`);
+                        const input = modal.querySelector(".comment-input");
+                        const content = input.value.trim();
+                        if (!content) return;
 
+                        const formData = new URLSearchParams();
+                        formData.append("postId", postId);
+                        formData.append("content", content);
 
-						const data = await res.json();
-						if (data.success) {
-							const commentList = document.getElementById(`comment-list-${postId}`);
-							const li = document.createElement("li");
-							li.classList.add("list-group-item");
-							li.innerHTML = `<strong>${data.comment.user}:</strong> ${data.comment.content} <small class="text-muted">(${data.comment.createdAt})</small>`;
-							commentList.appendChild(li);
-							input.value = "";
-						}
-					});
-				}
-			});
-		}
+                        const res = await fetch(`/Feed?handler=AddComment`, {
+                            method: "POST",
+                            headers: {
+                                "RequestVerificationToken": token,
+                                "Content-Type": "application/x-www-form-urlencoded"
+                            },
+                            body: formData
+                        });
 
-		async function loadPosts() {
-			if (!hasMorePosts || loading) return;
-			loading = true;
+                        const data = await res.json();
+                        if (!data.success) return;
 
-			const res = await fetch(`/Feed?handler=LoadFeed&page=${page}`);
-			const html = await res.text();
-			if (html.trim().length === 0) {
-				hasMorePosts = false;
-				loading = false;
-				return;
-			}
+                        // Update modal
+                        const modalList = modal.querySelector(".modal-comment-list");
+                        if (modalList) {
+                            const li = document.createElement("li");
+                            li.classList.add("mb-2");
+                            li.innerHTML = `<strong>${data.comment.user}:</strong> ${data.comment.content} <small class="text-muted">(${data.comment.createdAt})</small>`;
+                            modalList.appendChild(li);
+                        }
 
-			const tempDiv = document.createElement("div");
-			tempDiv.innerHTML = html;
-			feedContainer.append(...tempDiv.children);
+                        // Update preview
+                        const card = document.getElementById(`post-${postId}`);
+                        const previewList = card.querySelector(".preview-comment-list");
+                        if (previewList) {
+                            previewList.innerHTML = `<li class="small text-muted mb-2">
+                                <strong>${data.comment.user}:</strong> ${data.comment.content}
+                                <small class="text-muted">(${data.comment.createdAt})</small>
+                            </li>`;
+                        }
 
-			attachPostEvents(feedContainer);
-			page++;
-			loading = false;
-		}
+                        // Update "View all comments" button
+                        const viewBtn = card.querySelector(`button[data-bs-target='#commentsModal_${postId}']`);
+                        if (viewBtn) {
+                            const match = viewBtn.textContent.match(/\d+/);
+                            const count = match ? parseInt(match[0]) + 1 : 1;
+                            viewBtn.textContent = `View all comments (${count})`;
+                        }
 
-		// Initial attachment
-		attachPostEvents(feedContainer);
+                        input.value = "";
+                    });
+                }
+            });
+        }
 
-		// Load More button
-		document.getElementById("load-more")?.addEventListener("click", loadPosts);
+        // Initial attachment
+        attachPostEvents(feedContainer);
 
-		// Infinite scroll
-		window.addEventListener("scroll", () => {
-			if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
-				loadPosts();
-			}
-		});
+        async function loadPosts() {
+            if (!hasMorePosts || loading) return;
+            loading = true;
 
-		// Category filtering
-		document.querySelectorAll(".category-filter").forEach(catLink => {
-			catLink.addEventListener("click", async (e) => {
-				e.preventDefault();
-				const catId = catLink.dataset.category;
-				const res = await fetch(`/Feed?handler=LoadFeed&page=0&categoryId=${catId}`);
-				const html = await res.text();
-				feedContainer.innerHTML = html;
-				page = 1;
-				hasMorePosts = true;
-				attachPostEvents(feedContainer);
-			});
-		});
-	</script>
+            const res = await fetch(`/Feed?handler=LoadFeed&page=${page}`);
+            const html = await res.text();
+            if (html.trim().length === 0) {
+                hasMorePosts = false;
+                loading = false;
+                return;
+            }
+
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = html;
+            feedContainer.append(...tempDiv.children);
+
+            attachPostEvents(feedContainer);
+            page++;
+            loading = false;
+        }
+
+        // Load more button
+        document.getElementById("load-more")?.addEventListener("click", loadPosts);
+
+        // Infinite scroll
+        window.addEventListener("scroll", () => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+                loadPosts();
+            }
+        });
+
+        // Category filtering
+        document.querySelectorAll(".category-filter").forEach(catLink => {
+            catLink.addEventListener("click", async e => {
+                e.preventDefault();
+                const catId = catLink.dataset.category;
+                const res = await fetch(`/Feed?handler=LoadFeed&page=0&categoryId=${catId}`);
+                const html = await res.text();
+                feedContainer.innerHTML = html;
+                page = 1;
+                hasMorePosts = true;
+                attachPostEvents(feedContainer);
+            });
+        });
+    </script>
 }
 
 
